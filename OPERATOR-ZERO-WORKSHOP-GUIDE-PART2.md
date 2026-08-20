@@ -117,6 +117,20 @@ aws ecs describe-services --cluster operator-zero-cluster \
 
 **Verify:** `operator-zero-dispatcher`, `operator-zero-action-handler`, `operator-zero-chaos-trigger` all listed; DynamoDB `Status: ACTIVE`; ECS `Status: ACTIVE`, `Running: 1`.
 
+**7.7 — Create the Slack webhook secret (optional)**
+
+The Supervisor Harness posts its final incident summary to Slack via `post_to_slack` (Step 5 of its reasoning process). This only fires if a webhook URL exists — skip this sub-step entirely and the pipeline still runs end to end, just without the Slack message; `record_incident_outcome` and DynamoDB memory are unaffected either way.
+
+If you have a Slack workspace and want the notification:
+1. In Slack: create an [Incoming Webhook](https://api.slack.com/messaging/webhooks) for the channel you want alerts in, copy the webhook URL
+2. AWS Console → **Secrets Manager** → **Store a new secret**
+3. **Secret type** → **Other type of secret**
+4. **Plaintext** tab → clear the default JSON → paste just the webhook URL (no quotes, no JSON wrapper)
+5. **Secret name** → `operator-zero/slack-webhook` (must match exactly — this is what `SLACK_SECRET_NAME` on `operator-zero-action-handler` points to)
+6. Click through **Next** with defaults → **Store**
+
+**Verify:** Secrets Manager → `operator-zero/slack-webhook` → **Retrieve secret value** shows your webhook URL.
+
 ## STEP 8 — Create the AgentCore Gateway
 
 **8 minutes**
@@ -436,8 +450,8 @@ You are the Supervisor. You do not query history, restart services, or
 analyze root cause yourself — you orchestrate two specialist Harnesses that
 do that work, then record the final outcome.
 
-YOUR 4-STEP REASONING PROCESS:
-You MUST follow all four steps, in order, for every incident. Do not skip steps.
+YOUR 5-STEP REASONING PROCESS:
+You MUST follow all five steps, in order, for every incident. Do not skip steps.
 
 Step 1 — CLASSIFY: Determine incident type
   Reliability: ECS, EC2, RDS, Lambda health/performance
@@ -464,23 +478,27 @@ Step 4 — DECIDE: Act or escalate
     - Confidence is HIGH
   Otherwise: escalate to human and explain why remediation was skipped.
 
-  Always finish by calling record_incident_outcome, regardless of outcome,
-  with: incident_type, classification, diagnostics_summary, action_taken
+  Always call record_incident_outcome next, regardless of outcome, with:
+  incident_type, classification, diagnostics_summary, action_taken
   (REMEDIATED / ESCALATED / MONITORED), outcome (RESOLVED / ESCALATED /
   MONITORING), and severity.
 
-  Then return a complete incident summary in your response including:
-    - Incident summary (type, affected resource, severity)
-    - What the Diagnostics Harness found (root cause, past occurrences, confidence)
-    - What the Remediation Harness did, if delegated, and its verified outcome
-    - Your decision: REMEDIATED or ESCALATED and why
-    - Specific recommended next actions for a human engineer
+Step 5 — NOTIFY: Call post_to_slack
+  Always call post_to_slack as the final tool call, regardless of outcome.
+  Pass a message containing: incident summary (type, affected resource,
+  severity), what Diagnostics found, what Remediation did (if delegated) and
+  its verified outcome, your decision (REMEDIATED or ESCALATED) and why, and
+  at least one specific next action for a human engineer. Pass the incident's
+  severity as the severity parameter.
+
+  Then return that same complete incident summary in your response.
 
 YOUR AUTHORIZED SCOPE:
   - Call diagnose_incident to delegate root-cause analysis
   - Call execute_remediation for ECS CPU incidents on operator-zero-cluster,
     only after a HIGH confidence REMEDIATE_AUTOMATICALLY from Diagnostics
   - Call record_incident_outcome to write the incident report to DynamoDB
+  - Call post_to_slack to notify the team of the outcome
   - Classify and prioritize incidents by severity
 
 OUTSIDE YOUR SCOPE (always requires human approval):

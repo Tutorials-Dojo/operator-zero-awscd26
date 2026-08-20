@@ -162,13 +162,13 @@ export class OperatorZeroBaseStack extends cdk.Stack {
               actions: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
               resources: ['*'],
             }),
-            // dispatcher's invoke_harness on the Supervisor Harness, and
-            // action-handler needs this to delegate diagnose_incident /
-            // execute_remediation to the Diagnostics and Remediation Harnesses.
-            // Harness ARNs don't exist until created in the console (Steps 9-10),
-            // so this is scoped to the harness resource type, not a specific ARN.
+            // dispatcher invokes the Supervisor Harness; action-handler invokes
+            // the Diagnostics and Remediation Harnesses (diagnose_incident /
+            // execute_remediation). None of these ARNs exist until created in
+            // the console (Steps 9, 10, 12), so this is scoped to the harness
+            // resource type, not specific ARNs.
             new iam.PolicyStatement({
-              sid: 'InvokeSubHarnesses',
+              sid: 'InvokeHarnesses',
               actions: ['bedrock-agentcore:InvokeHarness'],
               resources: [`arn:aws:bedrock-agentcore:${this.region}:${this.account}:harness/*`],
             }),

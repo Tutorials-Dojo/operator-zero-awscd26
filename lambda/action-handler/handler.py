@@ -211,20 +211,23 @@ def post_to_slack(event: dict, params: dict) -> dict:
     }
 
     try:
-        # Per-request webhook only — never fall back to a shared Secrets Manager
-        # webhook, or every learner would post into the same channel.
         webhook_url = (
             (params.get("webhook_url") or "").strip()
             or (event.get("webhook_url") or "").strip()
         )
 
         if not webhook_url:
-            return build_response(
-                event,
-                "post_to_slack",
-                "Slack post skipped: no webhook URL configured for this session. "
-                "The incident is recorded in DynamoDB memory.",
-            )
+            try:
+                webhook_url = get_slack_webhook()
+            except Exception as exc:
+                logger.warning("No webhook URL available (params or Secrets Manager): %s", exc)
+                return build_response(
+                    event,
+                    "post_to_slack",
+                    "Slack post skipped: no webhook URL configured. "
+                    "Set the operator-zero/slack-webhook secret (Step 7.7). "
+                    "The incident is recorded in DynamoDB memory.",
+                )
 
         request = urllib.request.Request(
             webhook_url,
