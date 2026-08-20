@@ -515,29 +515,14 @@ SEVERITY LEVELS:
 
 **2 minutes**
 
-The dispatcher Lambda receives every alarm event from EventBridge and invokes whichever Harness `HARNESS_ARN` points to. This is the only wiring step left.
+The dispatcher Lambda receives every alarm event from EventBridge and invokes whichever Harness `HARNESS_ARN` points to. This is the only wiring step left — same as Step 11, it's an environment-variable edit in the Lambda console, not a code change.
 
-In CloudShell, replace `PASTE_SUPERVISOR_HARNESS_ARN` with your real ARN from Step 12.6:
+1. Lambda console → search `operator-zero-dispatcher` → open it
+2. **Configuration** tab → **Environment variables** → **Edit**
+3. Set `HARNESS_ARN` → your Supervisor Harness ARN from Step 12.6
+4. **Save**
 
-```bash
-aws lambda update-function-configuration \
-  --function-name operator-zero-dispatcher \
-  --environment "Variables={
-    HARNESS_ARN=PASTE_SUPERVISOR_HARNESS_ARN,
-    MEMORY_TABLE=operator-zero-incidents
-  }" \
-  --region us-east-1
-```
-
-> This command replaces the entire environment-variable map, so it lists every variable the dispatcher needs, not just `HARNESS_ARN`.
-
-**Verify:**
-```bash
-aws lambda get-function-configuration \
-  --function-name operator-zero-dispatcher --region us-east-1 \
-  --query 'Environment.Variables.HARNESS_ARN' --output text
-```
-Output should be your full `arn:aws:bedrock-agentcore:us-east-1:ACCOUNT_ID:harness/operator_zero_supervisor-XXXXXXXX` — not a placeholder.
+**Verify:** back on the **Configuration → Environment variables** page, confirm `HARNESS_ARN` shows your full `arn:aws:bedrock-agentcore:us-east-1:ACCOUNT_ID:harness/operator_zero_supervisor-XXXXXXXX` — not blank or a placeholder.
 
 ## STEP 14 — Test the Full Pipeline Manually (Output A)
 
