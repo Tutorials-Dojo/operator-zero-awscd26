@@ -131,11 +131,6 @@ export class OperatorZeroBaseStack extends cdk.Stack {
         OperatorZeroPolicy: new iam.PolicyDocument({
           statements: [
             new iam.PolicyStatement({
-              sid: 'BedrockAgentInvoke',
-              actions: ['bedrock:InvokeAgent', 'bedrock-agent-runtime:InvokeAgent'],
-              resources: ['*'],
-            }),
-            new iam.PolicyStatement({
               sid: 'IncidentMemoryAccess',
               actions: [
                 'dynamodb:PutItem',
@@ -167,28 +162,7 @@ export class OperatorZeroBaseStack extends cdk.Stack {
               actions: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
               resources: ['*'],
             }),
-            // Converse / inference-profile path used when Agents API is unavailable
-            new iam.PolicyStatement({
-              sid: 'BedrockConverseCompat',
-              actions: [
-                'bedrock:InvokeModel',
-                'bedrock:InvokeModelWithResponseStream',
-                'bedrock:Converse',
-                'bedrock:ConverseStream',
-              ],
-              resources: [
-                'arn:aws:bedrock:*::foundation-model/*',
-                `arn:aws:bedrock:*:${this.account}:inference-profile/*`,
-                `arn:aws:bedrock:*:${this.account}:application-inference-profile/*`,
-              ],
-            }),
-            new iam.PolicyStatement({
-              sid: 'InvokeActionHandler',
-              actions: ['lambda:InvokeFunction'],
-              resources: [
-                `arn:aws:lambda:${this.region}:${this.account}:function:operator-zero-action-handler`,
-              ],
-            }),
+            // dispatcher's invoke_harness on the Supervisor Harness, and
             // action-handler needs this to delegate diagnose_incident /
             // execute_remediation to the Diagnostics and Remediation Harnesses.
             // Harness ARNs don't exist until created in the console (Steps 9-10),
@@ -233,14 +207,9 @@ export class OperatorZeroBaseStack extends cdk.Stack {
       // Covers ~40 concurrent learners + buffer. Bedrock tokens/sec remain the real bottleneck.
       // reservedConcurrentExecutions: 50,
       environment: {
-        // AGENTCORE_HARNESS tells the dispatcher to call invoke_harness with
-        // HARNESS_ARN instead of the Bedrock Agents Classic invoke_agent path.
-        AGENT_ID: 'AGENTCORE_HARNESS',
-        AGENT_ALIAS_ID: '',
+        // Set after creating the Supervisor Harness (Step 13) — no code edits needed.
         HARNESS_ARN: '',
         MEMORY_TABLE: incidentTable.tableName,
-        SLACK_SECRET_NAME: SLACK_SECRET_NAME,
-        AWS_ACCOUNT_ID: this.account,
       },
     });
 
@@ -377,7 +346,7 @@ export class OperatorZeroBaseStack extends cdk.Stack {
     // ── TASK 1.9 — Outputs ────────────────────────────────────────────────────
     new cdk.CfnOutput(this, 'DispatcherFunctionName', {
       value: dispatcherFn.functionName,
-      description: 'Update AGENT_ID and AGENT_ALIAS_ID env vars after creating the Bedrock Agent',
+      description: 'Set HARNESS_ARN after creating the Supervisor Harness (Step 13)',
       exportName: 'OperatorZeroDispatcherFunctionName',
     });
 

@@ -523,11 +523,8 @@ In CloudShell, replace `PASTE_SUPERVISOR_HARNESS_ARN` with your real ARN from St
 aws lambda update-function-configuration \
   --function-name operator-zero-dispatcher \
   --environment "Variables={
-    AGENT_ID=AGENTCORE_HARNESS,
     HARNESS_ARN=PASTE_SUPERVISOR_HARNESS_ARN,
-    MEMORY_TABLE=operator-zero-incidents,
-    SLACK_SECRET_NAME=operator-zero/slack-webhook,
-    AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    MEMORY_TABLE=operator-zero-incidents
   }" \
   --region us-east-1
 ```
@@ -782,6 +779,7 @@ cdk destroy OperatorZeroBaseStack --force
 | `cdk deploy` fails on CloudFormation error | IAM/EIP quota, or stale stack | Read the actual error — usually a quota; the VPC in this stack uses `natGateways: 0` on purpose to avoid Elastic IP limits |
 | Harness playground blank / no response | Harness still provisioning | Wait for **Status: Ready**, refresh the page |
 | `diagnose_incident`/`execute_remediation` returns "not configured" | Step 11 skipped | Set `DIAGNOSTICS_HARNESS_ARN` / `REMEDIATION_HARNESS_ARN` on `operator-zero-action-handler` |
+| Every gateway-routed tool call returns `Unknown function`, but direct playground tests of the Lambda work fine | AgentCore Gateway namespaces tool names per target as `{targetName}___{toolName}` — the Lambda never strips it | Fixed in this repo's `action-handler/handler.py` (`_normalize_invocation` strips the `___` prefix). Redeploy from this repo if you're on an older copy. |
 | ECS restart fails with AccessDenied | Deployed an old copy of the stack without the `RemediationEcsAccess` IAM statement | Redeploy from this repo's `cdk/lib/base-infra-stack.ts` |
 | `bedrock-agentcore:InvokeHarness` AccessDenied | Same as above — `InvokeSubHarnesses` IAM statement missing | Redeploy from this repo |
 | DynamoDB record not appearing | `record_incident_outcome` not reached, or Gateway target not synced | Check `operator-zero-action-handler` CloudWatch Logs for the actual error; re-invoke from Step 14 |

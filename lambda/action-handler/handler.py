@@ -483,17 +483,15 @@ FUNCTION_HANDLERS = {
 }
 
 
-def _normalize_invocation(event: dict) -> tuple[str, str, dict]:
-    """Accepts both Bedrock Agents Classic and AgentCore Gateway event shapes."""
-    if event.get("function") and isinstance(event.get("parameters"), list):
-        params = {
-            p["name"]: p["value"]
-            for p in event.get("parameters", [])
-            if "name" in p and "value" in p
-        }
-        return "agents-classic", event.get("function", ""), params
-
+def _normalize_invocation(event: dict) -> tuple[str, dict]:
+    """Parses AgentCore Gateway MCP tool-call event shapes."""
     function = event.get("toolName") or event.get("name") or event.get("tool_name") or ""
+    # AgentCore Gateway namespaces tool names per target as "{targetName}___{toolName}"
+    # so tools stay unique across targets sharing one gateway. Strip that prefix —
+    # otherwise every gateway-routed call misses FUNCTION_HANDLERS and returns
+    # "Unknown function" even though the tool name itself is correct.
+    if "___" in function and function not in FUNCTION_HANDLERS:
+        function = function.rsplit("___", 1)[-1]
     raw_args = event.get("arguments") or event.get("input") or event.get("parameters") or {}
     if isinstance(raw_args, str):
         try:
@@ -515,7 +513,7 @@ def _normalize_invocation(event: dict) -> tuple[str, str, dict]:
         function = event["requestBody"].get("name") or function
         params = event["requestBody"].get("arguments") or params
 
-    return "agentcore", function, params
+    return function, params
 
 
 def handler(event, context):
@@ -523,12 +521,12 @@ def handler(event, context):
     try:
         logger.info("Action group event: %s", json.dumps(event, default=str))
 
-        mode, function, params = _normalize_invocation(event)
+        function, params = _normalize_invocation(event)
 
         if "actionGroup" not in event:
             event = {**event, "actionGroup": "OperatorZero", "function": function}
 
-        logger.info("Routing to: %s mode=%s params keys=%s", function, mode, list(params.keys()))
+        logger.info("Routing to: %s params keys=%s", function, list(params.keys()))
 
         action_fn = FUNCTION_HANDLERS.get(function)
         if action_fn is not None:
@@ -542,20 +540,17 @@ def handler(event, context):
                 f"Available functions: {', '.join(sorted(FUNCTION_HANDLERS))}.",
             )
 
-        if mode == "agentcore":
-            body_text = (
-                result.get("functionResponse", {})
-                .get("responseBody", {})
-                .get("TEXT", {})
-                .get("body", json.dumps(result))
-            )
-            result = {
-                "message": body_text,
-                "content": [{"type": "text", "text": body_text}],
-                "functionResponse": result.get("functionResponse"),
-            }
-
-        return result
+        body_text = (
+            result.get("functionResponse", {})
+            .get("responseBody", {})
+            .get("TEXT", {})
+            .get("body", json.dumps(result))
+        )
+        return {
+            "message": body_text,
+            "content": [{"type": "text", "text": body_text}],
+            "functionResponse": result.get("functionResponse"),
+        }
 
     except Exception as exc:
         logger.error("Unhandled action-handler error: %s\n%s", exc, traceback.format_exc())
