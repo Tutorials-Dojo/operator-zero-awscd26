@@ -161,9 +161,18 @@ export class OperatorZeroBaseStack extends cdk.Stack {
             // execute_remediation). None of these ARNs exist until created in
             // the console (Steps 9, 10, 12), so this is scoped to the harness
             // resource type, not specific ARNs.
+            //
+            // InvokeHarness requires BOTH actions on the harness ARN — AgentCore
+            // checks permissions on the harness resource AND the underlying
+            // AgentCore Runtime resource it wraps. Granting only InvokeHarness
+            // produces AccessDeniedException on InvokeAgentRuntime at call time.
+            // https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/harness-security.html
             new iam.PolicyStatement({
               sid: 'InvokeHarnesses',
-              actions: ['bedrock-agentcore:InvokeHarness'],
+              actions: [
+                'bedrock-agentcore:InvokeHarness',
+                'bedrock-agentcore:InvokeAgentRuntime',
+              ],
               resources: [`arn:aws:bedrock-agentcore:${this.region}:${this.account}:harness/*`],
             }),
             // action-handler's restart_ecs_service / verify_ecs_service_health —

@@ -6,6 +6,13 @@ and Remediation Harnesses. Routes tool calls: query_incident_history,
 post_to_slack, restart_ecs_service, verify_ecs_service_health,
 diagnose_incident, execute_remediation, record_incident_outcome.
 
+AgentCore Gateway Lambda-target contract (confirmed against AWS docs —
+https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-add-target-lambda.html):
+  - `event` is the tool's arguments directly, as a flat dict — NOT wrapped
+    in "arguments"/"input"/"parameters", and it never contains the tool name.
+  - The tool name arrives via `context.client_context.custom['bedrockAgentCoreToolName']`,
+    formatted "{targetName}___{toolName}" — strip the prefix before dispatch.
+
 Environment (set by CDK, no code edits required):
   MEMORY_TABLE              DynamoDB table name (operator-zero-incidents)
   SLACK_WEBHOOK_URL         Slack Incoming Webhook URL (set after Step 7.7, optional)
@@ -462,36 +469,33 @@ FUNCTION_HANDLERS = {
 }
 
 
-def _normalize_invocation(event: dict) -> tuple[str, dict]:
-    """Parses AgentCore Gateway MCP tool-call event shapes."""
+def _extract_tool_name(context) -> str:
+    """
+    Tool name comes from context.client_context.custom['bedrockAgentCoreToolName']
+    (AWS boilerplate), not from the event body. Format is "{targetName}___{toolName}".
+    """
+    custom = getattr(getattr(context, "client_context", None), "custom", None) or {}
+    raw_name = custom.get("bedrockAgentCoreToolName", "") if isinstance(custom, dict) else ""
+    if "___" in raw_name:
+        return raw_name.rsplit("___", 1)[-1]
+    return raw_name
+
+
+def _normalize_invocation(event: dict, context) -> tuple[str, dict]:
+    function = _extract_tool_name(context)
+    if function:
+        # Real Gateway contract: event IS the tool's arguments, flat, no wrapper.
+        return function, (event if isinstance(event, dict) else {})
+
+    # Fallback for manual/console test invokes that don't carry AgentCore's
+    # client_context — lets you paste a {"toolName": ..., "arguments": {...}}
+    # test event in the Lambda console without a real Gateway invocation.
     function = event.get("toolName") or event.get("name") or event.get("tool_name") or ""
-    # AgentCore Gateway namespaces tool names per target as "{targetName}___{toolName}"
-    # so tools stay unique across targets sharing one gateway. Strip that prefix —
-    # otherwise every gateway-routed call misses FUNCTION_HANDLERS and returns
-    # "Unknown function" even though the tool name itself is correct.
     if "___" in function and function not in FUNCTION_HANDLERS:
         function = function.rsplit("___", 1)[-1]
-    raw_args = event.get("arguments") or event.get("input") or event.get("parameters") or {}
-    if isinstance(raw_args, str):
-        try:
-            raw_args = json.loads(raw_args)
-        except json.JSONDecodeError:
-            raw_args = {"value": raw_args}
-    if isinstance(raw_args, list):
-        params = {
-            p["name"]: p["value"]
-            for p in raw_args
-            if isinstance(p, dict) and "name" in p and "value" in p
-        }
-    elif isinstance(raw_args, dict):
-        params = dict(raw_args)
-    else:
+    params = event.get("arguments") or event.get("parameters") or {}
+    if not isinstance(params, dict):
         params = {}
-
-    if not function and isinstance(event.get("requestBody"), dict):
-        function = event["requestBody"].get("name") or function
-        params = event["requestBody"].get("arguments") or params
-
     return function, params
 
 
@@ -500,20 +504,18 @@ def handler(event, context):
     try:
         logger.info("Action group event: %s", json.dumps(event, default=str))
 
-        function, params = _normalize_invocation(event)
-
-        if "actionGroup" not in event:
-            event = {**event, "actionGroup": "OperatorZero", "function": function}
+        function, params = _normalize_invocation(event, context)
+        action_event = {"actionGroup": "OperatorZero", "function": function}
 
         logger.info("Routing to: %s params keys=%s", function, list(params.keys()))
 
         action_fn = FUNCTION_HANDLERS.get(function)
         if action_fn is not None:
-            result = action_fn(event, params)
+            result = action_fn(action_event, params)
         else:
             logger.error("Unknown action group function: %s", function)
             result = build_response(
-                event,
+                action_event,
                 function or "unknown",
                 f"Unknown function '{function}'. "
                 f"Available functions: {', '.join(sorted(FUNCTION_HANDLERS))}.",
@@ -525,16 +527,8 @@ def handler(event, context):
             .get("TEXT", {})
             .get("body", json.dumps(result))
         )
-        return {
-            "message": body_text,
-            "content": [{"type": "text", "text": body_text}],
-            "functionResponse": result.get("functionResponse"),
-        }
+        return {"result": body_text}
 
     except Exception as exc:
         logger.error("Unhandled action-handler error: %s\n%s", exc, traceback.format_exc())
-        return build_response(
-            event if isinstance(event, dict) else {},
-            (event or {}).get("function", "unknown") if isinstance(event, dict) else "unknown",
-            f"Action handler error: {exc}. Proceed without this tool result.",
-        )
+        return {"result": f"Action handler error: {exc}. Proceed without this tool result."}
