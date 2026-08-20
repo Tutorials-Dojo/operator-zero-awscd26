@@ -588,9 +588,10 @@ Click **Invoke**.
 
 1. CloudWatch console → **Logs** → **Log groups**
 2. Open `/aws/lambda/operator-zero-action-handler` → most recent log stream. You'll see each tool call received, the DynamoDB queries, the ECS restart command, the health check result.
-3. Open `/aws/lambda/operator-zero-dispatcher` → most recent log stream. You'll see: `Received event`, `Dispatching incident`, `Agent response length`, `Trace event count`, `Incident saved to memory`.
 
-> ⚠️ **Log stream empty:** CloudWatch Logs has a slight delay — wait 30 seconds and refresh. If still empty after confirming Step 14 succeeded in the playground, check that `operator-zero-gateway` is attached as a tool on the Supervisor Harness.
+> `/aws/lambda/operator-zero-dispatcher` will show **no log streams yet** — that's expected, not an error. Step 14's manual test goes straight through the Harness playground to the Supervisor Harness, bypassing the dispatcher entirely. The dispatcher only runs when EventBridge routes a real CloudWatch alarm to it, starting at Step 17. You'll see `Received event`, `Dispatching incident`, `Agent response length`, `Trace event count`, `Incident saved to memory` there once you reach that step.
+
+> ⚠️ **`operator-zero-action-handler` log stream empty:** CloudWatch Logs has a slight delay — wait 30 seconds and refresh. If still empty after confirming Step 14 succeeded in the playground, check that `operator-zero-gateway` is attached as a tool on the Supervisor Harness.
 
 ## STEP 16 — Check Output C: DynamoDB Incident Report
 
