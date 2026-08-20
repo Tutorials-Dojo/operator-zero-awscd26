@@ -43,7 +43,7 @@ dynamodb = boto3.resource("dynamodb")
 ecs_client = boto3.client("ecs")
 TTL_SECONDS = 90 * 24 * 60 * 60
 HARNESS_MAX_ITERATIONS = 8
-HARNESS_TIMEOUT_SECONDS = 90
+HARNESS_TIMEOUT_SECONDS = 170
 
 # AgentCore data-plane client is "bedrock-agentcore" / invoke_harness(...).
 # There is no "bedrock-agentcore-runtime" client or invoke_agent(...) method.
@@ -52,13 +52,13 @@ HARNESS_TIMEOUT_SECONDS = 90
 # a Diagnostics/Remediation Harness call that chains its own tool calls and
 # reasoning routinely runs 60-90s, so the *client socket* was timing out
 # before AgentCore's own timeoutSeconds allowance ran out. read_timeout here
-# is set above HARNESS_TIMEOUT_SECONDS with headroom, but under the Lambda's
-# own function timeout (120s) so a genuine timeout still returns cleanly
-# instead of the Lambda being killed mid-request. Retries disabled — retrying
-# a slow LLM call doubles latency/cost instead of fixing anything.
+# is set above HARNESS_TIMEOUT_SECONDS with headroom. max_attempts=2 allows
+# one retry on a transient timeout/connection error; worst case is two full
+# read_timeout cycles (~360s), which stays under the Lambda's own function
+# timeout (7 minutes) with buffer for the DynamoDB write that follows.
 agentcore_client = boto3.client(
     "bedrock-agentcore",
-    config=Config(connect_timeout=10, read_timeout=110, retries={"max_attempts": 1}),
+    config=Config(connect_timeout=10, read_timeout=180, retries={"max_attempts": 2}),
 )
 
 SEVERITY_EMOJI = {

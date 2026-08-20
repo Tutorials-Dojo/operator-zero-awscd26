@@ -205,10 +205,11 @@ export class OperatorZeroBaseStack extends cdk.Stack {
       role: lambdaRole,
       memorySize: 512,
       // The Supervisor Harness delegates to Diagnostics AND Remediation
-      // sequentially, each of which can itself take ~90-110s — 5 minutes
-      // gives the full chain room to complete without the Lambda being
-      // killed mid-invoke_harness call (see handler.py's read_timeout=285).
-      timeout: cdk.Duration.minutes(5),
+      // sequentially, each up to ~170s, with one retry on transient
+      // timeouts (see handler.py's read_timeout=380, max_attempts=2) —
+      // 14 minutes covers the worst case with buffer for the DynamoDB
+      // write that follows, while staying under Lambda's 15-minute ceiling.
+      timeout: cdk.Duration.minutes(14),
       tracing: lambda.Tracing.ACTIVE,
       logGroup: dispatcherLogGroup,
       // Covers ~40 concurrent learners + buffer. Bedrock tokens/sec remain the real bottleneck.
