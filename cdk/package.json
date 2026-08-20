@@ -1,0 +1,29 @@
+{
+  "name": "operator-zero-cdk",
+  "version": "1.0.0",
+  "description": "Operator Zero CDK Infrastructure",
+  "main": "lib/base-infra-stack.js",
+  "bin": {
+    "operator-zero": "bin/operator-zero.js"
+  },
+  "scripts": {
+    "build":   "tsc",
+    "watch":   "tsc -w",
+    "typecheck": "tsc --noEmit",
+    "cdk":     "cdk",
+    "synth":   "cdk synth",
+    "deploy":  "cdk deploy OperatorZeroBaseStack --require-approval never",
+    "destroy": "cdk destroy OperatorZeroBaseStack"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "aws-cdk":     "^2.150.0",
+    "ts-node":     "^10",
+    "typescript":  "~5.4"
+  },
+  "dependencies": {
+    "aws-cdk-lib":        "^2.150.0",
+    "constructs":         "^10.0.0",
+    "source-map-support": "^0.5.21"
+  }
+}

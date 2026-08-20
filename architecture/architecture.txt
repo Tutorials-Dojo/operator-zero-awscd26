@@ -1,0 +1,111 @@
+OPERATOR ZERO — Architecture Diagram
+Build an Autonomous Amazon Bedrock Agent that Operates Itself
+AWS Community Day Philippines 2026
+
+═══════════════════════════════════════════════════════════════════════════
+
+PART 1 — SINGLE AGENT
+
+  You (browser)
+      ↓ message
+  AgentCore Harness (my_first_agent)
+  Claude 3.5 Sonnet + your system prompt
+      ↓ streaming response
+  Harness Playground (Output A — live response)
+
+═══════════════════════════════════════════════════════════════════════════
+
+PART 2 — AUTONOMOUS MULTI-AGENT SYSTEM
+
+  CloudWatch Alarm: operator-zero-ECSHighCPU
+  (fires when ECS CPU > 60%)
+      ↓ state change → ALARM
+  EventBridge Rule: operator-zero-alarm-router
+  (routes alarm events automatically)
+      ↓ invokes
+  Lambda: operator-zero-dispatcher
+  (receives event, starts agent session)
+      ↓ starts session
+  ┌─────────────────────────────────────────────────────┐
+  │  SUPERVISOR HARNESS: operator_zero_supervisor        │
+  │  Claude 3.5 Sonnet                                  │
+  │  CLASSIFY → RECALL → REASON → DECIDE               │
+  └─────────────────────────────────────────────────────┘
+      ↓ delegates to                    ↓ delegates to
+  ┌──────────────────────┐    ┌──────────────────────────┐
+  │  DIAGNOSTICS HARNESS │    │  REMEDIATION HARNESS      │
+  │  operator_zero_diag  │    │  operator_zero_remediation│
+  │                      │    │                           │
+  │  Tools:              │    │  Tools:                   │
+  │  • query_incident    │    │  • restart_ecs_service    │
+  │    _history          │    │  • verify_ecs_service     │
+  │    → DynamoDB        │    │    _health → ECS API      │
+  │                      │    │                           │
+  │  Returns:            │    │  Returns:                 │
+  │  Root cause +        │    │  Action taken +           │
+  │  confidence score +  │    │  verification result +    │
+  │  recommendation      │    │  outcome                  │
+  └──────────────────────┘    └──────────────────────────┘
+      ↓ back to Supervisor ←──────────────────────────────┘
+      ↓
+  Lambda: operator-zero-action-handler
+  (writes final incident report)
+      ↓
+  DynamoDB: operator-zero-incidents
+  (90-day incident memory)
+      ↓
+  OUTPUT C: Full incident report
+  {
+    incident_type: "operator-zero-ECSHighCPU",
+    classification: "Reliability — ECS CPU saturation",
+    diagnostics_summary: "Root cause: container resource exhaustion...",
+    action_taken: "REMEDIATED",
+    outcome: "RESOLVED",
+    severity: "HIGH",
+    timestamp: "2026-08-10T...",
+    ttl: 90 days from now
+  }
+
+  ECS Fargate Service: operator-zero-service
+  (the monitored workload — nginx container)
+      ↑ restarted autonomously by Remediation Agent
+      ↓ returns to healthy state (1/1 running tasks)
+  CloudWatch Alarm returns to OK state
+
+═══════════════════════════════════════════════════════════════════════════
+
+WHAT THE THREE OUTPUTS SHOW:
+
+  Output A — Harness Playground
+    Live streaming response as agents reason in real time.
+    See CLASSIFY → RECALL → REASON → DECIDE happening.
+
+  Output B — CloudWatch Logs
+    Full execution trace of every Lambda and every agent action.
+    The operational audit trail a real SRE would check.
+    Log groups:
+      /aws/lambda/operator-zero-dispatcher
+      /aws/lambda/operator-zero-action-handler
+
+  Output C — DynamoDB
+    Persistent incident report: what happened, what was diagnosed,
+    what action was taken, whether it resolved, when it happened.
+    Table: operator-zero-incidents
+    TTL: 90 days — the agent remembers for 3 months.
+
+═══════════════════════════════════════════════════════════════════════════
+
+AWS SERVICES USED:
+
+  Amazon Bedrock AgentCore    Harness (agent runtime)
+  AWS Lambda                  Dispatcher, action-handler, chaos-trigger
+  Amazon DynamoDB             Incident memory (90-day TTL)
+  Amazon ECS Fargate          Monitored workload (nginx)
+  Amazon CloudWatch           Alarms and logs
+  Amazon EventBridge          Event routing (alarm → dispatcher)
+  AWS CDK v2 (TypeScript)     Infrastructure as code
+  AWS CloudShell              Terminal for deployment commands
+
+═══════════════════════════════════════════════════════════════════════════
+
+REGION: us-east-1 (N. Virginia)

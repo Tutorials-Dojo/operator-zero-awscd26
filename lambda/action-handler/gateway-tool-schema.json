@@ -1,0 +1,160 @@
+[
+  {
+    "name": "query_incident_history",
+    "description": "Query DynamoDB for past incidents of the specified type to inform current reasoning.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "incident_type": {
+          "type": "string",
+          "description": "The alarm name or incident type to search history for."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of past incidents to return. Defaults to 5."
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Workshop lab session id, if scoping history to one learner's session."
+        }
+      },
+      "required": ["incident_type"]
+    }
+  },
+  {
+    "name": "post_to_slack",
+    "description": "Post a structured incident analysis and decision to a Slack channel via Incoming Webhook.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "The complete incident analysis including classification, reasoning, and recommended actions."
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity level for formatting: CRITICAL, HIGH, MEDIUM, LOW, or INFO."
+        },
+        "webhook_url": {
+          "type": "string",
+          "description": "Slack Incoming Webhook URL for this session, if not configured via Secrets Manager."
+        }
+      },
+      "required": ["message"]
+    }
+  },
+  {
+    "name": "restart_ecs_service",
+    "description": "Force a new ECS deployment to restart all tasks in the specified service. Only operates on operator-zero-cluster.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster_name": {
+          "type": "string",
+          "description": "ECS cluster name. Defaults to operator-zero-cluster."
+        },
+        "service_name": {
+          "type": "string",
+          "description": "ECS service name. Defaults to operator-zero-service."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why this restart is being triggered, for the audit trail."
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "verify_ecs_service_health",
+    "description": "Check running vs desired task count for an ECS service to confirm recovery after a restart.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster_name": {
+          "type": "string",
+          "description": "ECS cluster name. Defaults to operator-zero-cluster."
+        },
+        "service_name": {
+          "type": "string",
+          "description": "ECS service name. Defaults to operator-zero-service."
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "diagnose_incident",
+    "description": "Delegate root-cause analysis to the Diagnostics Harness. Returns a structured assessment with confidence score and recommended action.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "incident_description": {
+          "type": "string",
+          "description": "Full incident details: what triggered it, current state, and any known context."
+        },
+        "alarm_name": {
+          "type": "string",
+          "description": "The CloudWatch alarm or event name that triggered this incident."
+        }
+      },
+      "required": ["incident_description"]
+    }
+  },
+  {
+    "name": "execute_remediation",
+    "description": "Delegate healing to the Remediation Harness. Restarts the ECS service and verifies recovery. Only call after Diagnostics returns HIGH confidence REMEDIATE_AUTOMATICALLY.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "service_name": {
+          "type": "string",
+          "description": "ECS service name to remediate. Defaults to operator-zero-service."
+        },
+        "reason": {
+          "type": "string",
+          "description": "The root cause and justification from the Diagnostics assessment."
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "record_incident_outcome",
+    "description": "Write the final incident report to DynamoDB. Always call this as the last step, regardless of outcome.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "incident_type": {
+          "type": "string",
+          "description": "The alarm name or incident type."
+        },
+        "classification": {
+          "type": "string",
+          "description": "Reliability, Cost, Security, or Unknown."
+        },
+        "diagnostics_summary": {
+          "type": "string",
+          "description": "Summary of what the Diagnostics Harness found."
+        },
+        "action_taken": {
+          "type": "string",
+          "description": "REMEDIATED, ESCALATED, or MONITORED."
+        },
+        "outcome": {
+          "type": "string",
+          "description": "RESOLVED, ESCALATED, or MONITORING."
+        },
+        "severity": {
+          "type": "string",
+          "description": "CRITICAL, HIGH, MEDIUM, LOW, or INFO."
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Workshop lab session id."
+        }
+      },
+      "required": ["incident_type", "action_taken", "outcome"]
+    }
+  }
+]
