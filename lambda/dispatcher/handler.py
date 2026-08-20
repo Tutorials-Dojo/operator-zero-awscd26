@@ -31,7 +31,6 @@ logger.setLevel(logging.INFO)
 
 dynamodb = boto3.resource("dynamodb")
 
-PLACEHOLDER = "PLACEHOLDER_UPDATE_AFTER_HARNESS_CREATION"
 TTL_SECONDS = 90 * 24 * 60 * 60
 AGENT_RESPONSE_MAX_CHARS = 4000
 RAW_EVENT_MAX_CHARS = 2000
@@ -55,10 +54,9 @@ bedrock_agentcore = boto3.client(
 
 
 def validate_config() -> None:
-    harness_arn = os.environ.get("HARNESS_ARN", "")
-    if not harness_arn or harness_arn == PLACEHOLDER:
+    if not os.environ.get("HARNESS_ARN", ""):
         logger.warning(
-            "Dispatcher misconfigured: HARNESS_ARN still unset or PLACEHOLDER. "
+            "Dispatcher misconfigured: HARNESS_ARN still unset. "
             "Set it to your Supervisor Harness ARN (workshop guide Step 13)."
         )
 
@@ -219,10 +217,9 @@ def save_incident_to_memory(
 
 def _require_harness_arn() -> str:
     harness_arn = os.environ.get("HARNESS_ARN", "")
-    if not harness_arn or harness_arn == PLACEHOLDER:
+    if not harness_arn:
         raise ValueError(
-            "HARNESS_ARN still unset or a placeholder. "
-            "Set it to your Supervisor Harness ARN (Step 13)."
+            "HARNESS_ARN still unset. Set it to your Supervisor Harness ARN (Step 13)."
         )
     return harness_arn
 
