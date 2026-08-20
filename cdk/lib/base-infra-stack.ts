@@ -240,9 +240,11 @@ export class OperatorZeroBaseStack extends cdk.Stack {
       code: pythonLambdaCode(path.join(__dirname, '../../lambda/action-handler')),
       role: lambdaRole,
       memorySize: 256,
-      // Diagnostics/Remediation Harness delegation can take 60-90s; the
-      // Gateway's own invocation timeout is longer than the default 30s.
-      timeout: cdk.Duration.seconds(120),
+      // Diagnostics/Remediation Harness delegation can take up to ~170s,
+      // with one retry on transient timeouts (see handler.py's
+      // read_timeout=180, max_attempts=2) — 7 minutes covers the worst
+      // case with buffer for the DynamoDB write that follows.
+      timeout: cdk.Duration.minutes(7),
       tracing: lambda.Tracing.ACTIVE,
       logGroup: actionHandlerLogGroup,
       environment: {
