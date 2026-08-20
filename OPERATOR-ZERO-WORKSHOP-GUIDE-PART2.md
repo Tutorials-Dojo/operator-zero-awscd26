@@ -6,6 +6,8 @@
 
 Continuing from [Part 1](OPERATOR-ZERO-WORKSHOP-GUIDE-PART1.md), where you built a single standalone Harness (`my_first_agent`) and learned the mechanics: model, system prompt, tools, playground.
 
+Hit an error at any point? Check the [Troubleshooting](#troubleshooting) table at the bottom before assuming something's broken — most symptoms in this workshop are already catalogued there.
+
 ### Recap: what you're building in this part
 
 ```
@@ -59,36 +61,7 @@ Takes 1–2 minutes.
 ```bash
 cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)/us-east-1
 ```
-Wait for `✅ Environment ... bootstrapped`.
-
-> ⚠️ **Banner before your command runs:**
-> ```
-> ****************************************************
-> *** Newer version of CDK is available [2.1138.0] ***
-> *** Upgrade recommended (npm install -g aws-cdk)  ***
-> ****************************************************
-> ```
-> This alone is not an error — it's the CDK CLI politely nagging you every time it runs. Ignore it *unless* it's immediately followed by:
-> ```
-> This CDK CLI is not compatible with the CDK library used by your application.
-> Please upgrade the CLI to the latest version.
-> (Cloud assembly schema version mismatch: Maximum schema version supported is 53.x.x,
-> but found 54.0.0. You need at least CLI version 2.1138.0 to read this manifest.)
-> ```
-> That second block **is** an error — the CLI pre-installed in CloudShell is older than the CDK library this repo pins. Fix:
-> ```bash
-> sudo npm install -g aws-cdk
-> ```
-> (CloudShell's system Node folder needs `sudo` for a global install — that's expected here, unlike a typical local machine.) If `sudo` isn't available or still fails with `EACCES permission denied`, install it locally into the project instead:
-> ```bash
-> npm install aws-cdk
-> export PATH=$(pwd)/node_modules/.bin:$PATH
-> cdk --version
-> ```
-> Then re-run the bootstrap command.
-
-> ⚠️ **`[WARNING] aws-cdk-lib.aws_ecs.ClusterProps#containerInsights is deprecated`, `...TableOptions#pointInTimeRecovery is deprecated`, or `...FunctionOptions#logRetention is deprecated` during `cdk bootstrap` or `cdk deploy`:**
-> These three specific deprecation warnings mean you're running an older copy of this repo — this repo's `cdk/lib/base-infra-stack.ts` already uses the non-deprecated replacements (`containerInsightsV2`, `pointInTimeRecoverySpecification`, and an explicit `logGroup` per function), so a fresh clone produces none of them. Re-clone from Step 7.2 if you see these. Any *other* yellow `WARNING` line (not one of these three) is informational and safe to ignore — only red `Error` lines block the deploy.
+Wait for `✅ Environment ... bootstrapped`. If this errors out, see [Troubleshooting](#troubleshooting) — the CDK CLI version mismatch is common here and has a one-line fix.
 
 **7.5 — Deploy the stack**
 ```bash
@@ -113,8 +86,6 @@ aws ecs describe-services --cluster operator-zero-cluster \
   --query 'services[0].{Service:serviceName,Status:status,Running:runningCount}' --output table
 ```
 
-> ⚠️ **Terminal shows `(END)` and won't accept input:** you're in a pager. Press **q** to exit.
-
 **Verify:** `operator-zero-dispatcher`, `operator-zero-action-handler`, `operator-zero-chaos-trigger` all listed; DynamoDB `Status: ACTIVE`; ECS `Status: ACTIVE`, `Running: 1`.
 
 **7.7 — Set the Slack webhook (optional)**
@@ -129,7 +100,7 @@ If you have a Slack workspace and want the notification, it's the same environme
 4. Set `SLACK_WEBHOOK_URL` → your webhook URL
 5. **Save**
 
-> The webhook URL sits in plaintext in the Lambda's environment variables (visible to anyone with read access to this Lambda in the console or via `get-function-configuration`). Fine for a disposable workshop webhook — if you're taking this pattern into a real deployment, put it in Secrets Manager or SSM Parameter Store instead and read it at invoke time.
+The webhook URL sits in plaintext in the Lambda's environment variables — fine for a disposable workshop webhook; if you're taking this pattern into a real deployment, use Secrets Manager or SSM Parameter Store instead.
 
 **Verify:** back on **Configuration → Environment variables**, confirm `SLACK_WEBHOOK_URL` shows your webhook URL.
 
@@ -258,9 +229,7 @@ Find the **Tool schema** field under the target configuration → select **Inlin
 
 **8.7 — Outbound Auth for the target** — select **IAM Role** (lets the Gateway invoke the Lambda with IAM auth)
 
-**8.8 — Create** — scroll down, **Next → Create Gateway**. Takes 30–60 seconds.
-
-> ⚠️ **"Gateway execution role lacks permission to invoke Lambda function ... Update the permission and retry"** — this is a known timing gap between when the Gateway's auto-generated role is created and when its policy attaches. Fix: scroll to **Targets** → **Add** → re-enter the same target config from 8.5–8.7 (protocol: MCP, name: `operator-zero-action-handler-target`, type: Lambda ARN, same ARN, same tool schema, Outbound Auth: IAM Role) → **Add target**. It succeeds the second time.
+**8.8 — Create** — scroll down, **Next → Create Gateway**. Takes 30–60 seconds. If you get a permissions error here, see [Troubleshooting](#troubleshooting) — it's a known one-retry timing gap.
 
 **8.9 — Copy the Gateway name**
 On the Gateway detail page, confirm **Status: Ready** ✅. You only need the **gateway name** (`operator-zero-gateway`) for the next steps — you select it from a dropdown, no ARN copy-paste needed.
@@ -567,20 +536,17 @@ is high enough, delegate to remediation. Record the full outcome.
 
 Click **Invoke**.
 
-**14.3 — Watch the Agent response panel stream:**
+**14.3 — Watch the Agent response panel stream (60–120 seconds — the Supervisor is coordinating three Harnesses in sequence, don't click anything while it runs):**
 - Supervisor **CLASSIFYING** the incident
 - `diagnose_incident` called → Diagnostics Harness runs → calls `query_incident_history`
 - Diagnostics returns its structured assessment with a confidence score
 - Supervisor evaluates: REMEDIATE_AUTOMATICALLY or ESCALATE?
 - If remediating: `execute_remediation` called → Remediation Harness runs `restart_ecs_service` then `verify_ecs_service_health`
 - `record_incident_outcome` called → written to DynamoDB
+- `post_to_slack` called → posted if `SLACK_WEBHOOK_URL` is set, skipped cleanly if not
 - Final summary in the response
 
-> ⚠️ **This can take 60–120 seconds** — the Supervisor is coordinating three Harnesses in sequence. Don't click anything while it runs.
-
-> ⚠️ **"AccessDenied" on ECS or bedrock-agentcore calls in CloudWatch Logs:** these permissions are already granted by the CDK stack from Step 7 (`ecs:UpdateService`/`DescribeServices` scoped to `operator-zero-service`, and `bedrock-agentcore:InvokeHarness` scoped to your harnesses). If you still see AccessDenied, confirm you deployed the CDK stack from this repo (not an older copy) and that the IAM role `operator-zero-lambda-role` shows both statements under its inline policy.
-
-> ⚠️ **"DIAGNOSTICS_HARNESS_ARN not configured" or "REMEDIATION_HARNESS_ARN not configured":** go back to Step 11 and confirm both environment variables are saved on `operator-zero-action-handler`, with the full `arn:aws:bedrock-agentcore:...` string.
+If anything in this chain errors out, check [Troubleshooting](#troubleshooting) before retrying — most failures here are one of a handful of known causes.
 
 ## STEP 15 — Check Output B: CloudWatch Logs
 
@@ -589,9 +555,7 @@ Click **Invoke**.
 1. CloudWatch console → **Logs** → **Log groups**
 2. Open `/aws/lambda/operator-zero-action-handler` → most recent log stream. You'll see each tool call received, the DynamoDB queries, the ECS restart command, the health check result.
 
-> `/aws/lambda/operator-zero-dispatcher` will show **no log streams yet** — that's expected, not an error. Step 14's manual test goes straight through the Harness playground to the Supervisor Harness, bypassing the dispatcher entirely. The dispatcher only runs when EventBridge routes a real CloudWatch alarm to it, starting at Step 17. You'll see `Received event`, `Dispatching incident`, `Agent response length`, `Trace event count`, `Incident saved to memory` there once you reach that step.
-
-> ⚠️ **`operator-zero-action-handler` log stream empty:** CloudWatch Logs has a slight delay — wait 30 seconds and refresh. If still empty after confirming Step 14 succeeded in the playground, check that `operator-zero-gateway` is attached as a tool on the Supervisor Harness.
+`/aws/lambda/operator-zero-dispatcher` will show **no log streams yet** — that's expected, not an error. Step 14's manual test goes straight through the Harness playground to the Supervisor Harness, bypassing the dispatcher entirely. The dispatcher only runs when EventBridge routes a real CloudWatch alarm to it, starting at Step 17. You'll see `Received event`, `Dispatching incident`, `Agent response length`, `Trace event count`, `Incident saved to memory` there once you reach that step.
 
 ## STEP 16 — Check Output C: DynamoDB Incident Report
 
@@ -779,10 +743,16 @@ cdk destroy OperatorZeroBaseStack --force
 
 ## TROUBLESHOOTING
 
+Quick-reference table first — for the handful of symptoms that need more than one line, detailed fixes follow below it.
+
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `cdk bootstrap`/`deploy` fails on region | Wrong region set | Confirm `us-east-1` everywhere, including CloudShell's region tab |
 | `cdk deploy` fails on CloudFormation error | IAM/EIP quota, or stale stack | Read the actual error — usually a quota; the VPC in this stack uses `natGateways: 0` on purpose to avoid Elastic IP limits |
+| `cdk bootstrap`/`deploy` fails with a CDK CLI / cloud assembly schema version error | CloudShell's pre-installed CDK CLI is older than this repo's pinned CDK library | See [CDK CLI version mismatch](#cdk-cli-version-mismatch) below |
+| Yellow `[WARNING]` lines about `containerInsights`, `pointInTimeRecovery`, or `logRetention` being deprecated during deploy | You're on an older copy of this repo — current `cdk/lib/base-infra-stack.ts` already uses the non-deprecated replacements | Re-clone from Step 7.2. Any *other* yellow warning is informational and safe to ignore — only red `Error` lines block the deploy |
+| Terminal shows `(END)` and won't accept input | You're in a pager | Press **q** to exit |
+| "Gateway execution role lacks permission to invoke Lambda function ... Update the permission and retry" on Gateway creation | Known timing gap between when the Gateway's auto-generated role is created and when its policy attaches | Scroll to **Targets** → **Add** → re-enter the same target config from Step 8.5–8.7 → **Add target**. Succeeds on the second try. |
 | Harness playground blank / no response | Harness still provisioning | Wait for **Status: Ready**, refresh the page |
 | `diagnose_incident`/`execute_remediation` returns "not configured" | Step 11 skipped | Set `DIAGNOSTICS_HARNESS_ARN` / `REMEDIATION_HARNESS_ARN` on `operator-zero-action-handler` |
 | Every gateway-routed tool call returns `Unknown function ''` (empty name) | For a Lambda target, AgentCore Gateway passes the tool's arguments directly as `event` (no wrapper) and the tool name only in `context.client_context.custom['bedrockAgentCoreToolName']`, formatted `{targetName}___{toolName}` — not in `event` at all. See [AWS Lambda function targets](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-add-target-lambda.html). | Fixed in this repo's `action-handler/handler.py` (`_extract_tool_name` reads `context.client_context.custom` and strips the `___` prefix). Redeploy from this repo if you're on an older copy. |
@@ -790,7 +760,35 @@ cdk destroy OperatorZeroBaseStack --force
 | `bedrock-agentcore:InvokeHarness` or `bedrock-agentcore:InvokeAgentRuntime` AccessDeniedException | `InvokeHarness` requires **both** actions on the harness ARN — AgentCore checks the harness resource and the underlying AgentCore Runtime resource it wraps ([source](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/harness-security.html)). An older copy of this repo may only grant one. | Redeploy from this repo — `InvokeHarnesses` in `cdk/lib/base-infra-stack.ts` grants both |
 | `diagnose_incident`/`execute_remediation` fails with an `AWSHTTPSConnectionPool`/read timeout error to `bedrock-agentcore.<region>.amazonaws.com` | boto3's default client `read_timeout` (60s) is shorter than a real Diagnostics/Remediation Harness invocation, which routinely runs 60-90s+. The client socket gave up before AgentCore's own `timeoutSeconds` allowance ran out — not a network or IAM fault. | Fixed in this repo — both Lambdas' `bedrock-agentcore` clients now set `read_timeout` above their `timeoutSeconds` value with headroom under the Lambda's own function timeout (dispatcher: 5 min Lambda timeout, 270s harness timeout, 285s read timeout). Redeploy if you're on an older copy. |
 | DynamoDB record not appearing | `record_incident_outcome` not reached, or Gateway target not synced | Check `operator-zero-action-handler` CloudWatch Logs for the actual error; re-invoke from Step 14 |
+| `operator-zero-action-handler` CloudWatch log stream empty | Ingestion delay | Wait 30 seconds and refresh. If still empty after confirming Step 14 succeeded in the playground, check that `operator-zero-gateway` is attached as a tool on the Supervisor Harness |
+| `operator-zero-dispatcher` CloudWatch log group has no streams (during/after Step 14) | Expected, not an error — the manual playground test bypasses the dispatcher entirely | It only populates from Step 17 onward, once EventBridge routes a real alarm through it |
 | Second incident looks identical to first | Memory working correctly | Diagnostics queried DynamoDB — check `PAST OCCURRENCES` in its assessment |
 | EventBridge not triggering | Rule is `DISABLED` | `aws events enable-rule --name operator-zero-alarm-router --region us-east-1` |
-| CloudWatch Logs empty | Ingestion delay | Wait 30 seconds, refresh |
-| Gateway target creation error on first try | Known IAM role propagation timing gap (Step 8.8) | Re-add the target once — it succeeds on retry |
+
+### CDK CLI version mismatch
+
+You'll see a banner like this before *every* CDK command — it's not an error on its own:
+```
+****************************************************
+*** Newer version of CDK is available [2.1138.0] ***
+*** Upgrade recommended (npm install -g aws-cdk)  ***
+****************************************************
+```
+Ignore it *unless* it's immediately followed by something like:
+```
+This CDK CLI is not compatible with the CDK library used by your application.
+Please upgrade the CLI to the latest version.
+(Cloud assembly schema version mismatch: Maximum schema version supported is 53.x.x,
+but found 54.0.0. You need at least CLI version 2.1138.0 to read this manifest.)
+```
+That second block **is** an error — the CLI pre-installed in CloudShell is older than the CDK library this repo pins. Fix:
+```bash
+sudo npm install -g aws-cdk
+```
+(CloudShell's system Node folder needs `sudo` for a global install — expected here, unlike a typical local machine.) If `sudo` isn't available or still fails with `EACCES permission denied`, install it locally into the project instead:
+```bash
+npm install aws-cdk
+export PATH=$(pwd)/node_modules/.bin:$PATH
+cdk --version
+```
+Then re-run the command that failed.
