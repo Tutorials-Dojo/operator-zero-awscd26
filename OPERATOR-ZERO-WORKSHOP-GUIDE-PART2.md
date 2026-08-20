@@ -6,7 +6,7 @@
 
 Continuing from [Part 1](OPERATOR-ZERO-WORKSHOP-GUIDE-PART1.md), where you built a single standalone Harness (`my_first_agent`) and learned the mechanics: model, system prompt, tools, playground.
 
-Hit an error at any point? Check the [Troubleshooting](#troubleshooting) table at the bottom before assuming something's broken — most symptoms in this workshop are already catalogued there.
+If you hit an error, check the [Troubleshooting](#troubleshooting) table at the bottom.
 
 ### Recap: what you're building in this part
 
@@ -394,8 +394,6 @@ RULES:
    - `REMEDIATION_HARNESS_ARN` → your Remediation Harness ARN from Step 10.6
 4. **Save**
 
-That's it — no **Code** tab, no pasting `elif` blocks. `MEMORY_TABLE` was already set by CDK in Step 7, and `SLACK_WEBHOOK_URL` if you set it in Step 7.7.
-
 ## STEP 12 — Create the Supervisor Harness
 
 **8 minutes**
@@ -546,8 +544,6 @@ Click **Invoke**.
 - `post_to_slack` called → posted if `SLACK_WEBHOOK_URL` is set, skipped cleanly if not
 - Final summary in the response
 
-If anything in this chain errors out, check [Troubleshooting](#troubleshooting) before retrying — most failures here are one of a handful of known causes.
-
 ## STEP 15 — Check Output B: CloudWatch Logs
 
 **3 minutes**
@@ -572,8 +568,6 @@ If anything in this chain errors out, check [Troubleshooting](#troubleshooting) 
 
 **10 minutes**
 
-This is the payoff. You set the alarm. Then you do nothing.
-
 **17.1 — Open three browser tabs**
 - **Tab 1:** CloudWatch → **Alarms** → find `operator-zero-ECSHighCPU`
 - **Tab 2:** CloudWatch → **Logs** → **Log groups** → `/aws/lambda/operator-zero-dispatcher` → most recent stream
@@ -596,14 +590,12 @@ aws cloudwatch set-alarm-state \
   --region us-east-1
 ```
 
-**Put your hands in your lap. Do not type anything.**
-
 **17.4 — Watch it work**
 - **Tab 1:** alarm flips to **In alarm** (red)
 - **Tab 2:** `Received event` → `Dispatching incident: type=operator-zero-ECSHighCPU` → `Agent response length=...` → `Trace event count` → `Incident saved to memory`
 - **Tab 3:** refresh every 30s — a new record appears with today's timestamp; open it and check `action_taken: REMEDIATED`, `outcome: RESOLVED`, `agent_response` (the full reasoning chain), `source: supervisor-agent`
 
-**Total time from trigger to resolution: roughly 60–120 seconds. No human did any of this.**
+**Total time from trigger to resolution:** roughly 60–120 seconds.
 
 **17.5 — Disable EventBridge** (always do this after any demo)
 ```bash
@@ -646,8 +638,6 @@ You should see two records now. Disable EventBridge again:
 ```bash
 aws events disable-rule --name operator-zero-alarm-router --region us-east-1
 ```
-
-**Same alarm. Different reasoning. Because it remembers.**
 
 ## STEP 19 — Architecture Verification
 
@@ -742,8 +732,6 @@ cdk destroy OperatorZeroBaseStack --force
 ---
 
 ## TROUBLESHOOTING
-
-Quick-reference table first — for the handful of symptoms that need more than one line, detailed fixes follow below it.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|

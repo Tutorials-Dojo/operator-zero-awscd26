@@ -163,4 +163,4 @@ The **Configs** panel on the right shows your system prompt and model. The top b
 
 ---
 
-**Part 1 done.** Continue to [Part 2 — Build the Autonomous Multi-Agent System](OPERATOR-ZERO-WORKSHOP-GUIDE-PART2.md).
+Continue to [Part 2 — Build the Autonomous Multi-Agent System](OPERATOR-ZERO-WORKSHOP-GUIDE-PART2.md).
