@@ -23,12 +23,12 @@ import traceback
 from datetime import datetime, timezone
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-bedrock_agentcore = boto3.client("bedrock-agentcore")
 dynamodb = boto3.resource("dynamodb")
 
 PLACEHOLDER = "PLACEHOLDER_UPDATE_AFTER_HARNESS_CREATION"
@@ -36,7 +36,22 @@ TTL_SECONDS = 90 * 24 * 60 * 60
 AGENT_RESPONSE_MAX_CHARS = 4000
 RAW_EVENT_MAX_CHARS = 2000
 HARNESS_MAX_ITERATIONS = 8
-HARNESS_TIMEOUT_SECONDS = 180
+# The Supervisor's own reasoning chain calls diagnose_incident and
+# execute_remediation, each of which can itself run up to ~90-110s (see
+# action-handler's HARNESS_TIMEOUT_SECONDS/read_timeout) — so 180s here was
+# too tight to ever complete both delegated calls plus its own reasoning.
+HARNESS_TIMEOUT_SECONDS = 270
+
+# boto3's default read_timeout (60s) is far shorter than a full Supervisor
+# reasoning chain — the client socket was timing out long before AgentCore's
+# own timeoutSeconds allowance ran out. read_timeout is set with headroom
+# above HARNESS_TIMEOUT_SECONDS but under the Lambda's function timeout
+# (5 minutes, see CDK) so a genuine timeout returns cleanly. Retries
+# disabled — retrying a slow multi-harness chain doubles latency/cost.
+bedrock_agentcore = boto3.client(
+    "bedrock-agentcore",
+    config=Config(connect_timeout=10, read_timeout=285, retries={"max_attempts": 1}),
+)
 
 
 def validate_config() -> None:
