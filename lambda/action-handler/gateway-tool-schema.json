@@ -37,7 +37,7 @@
         },
         "webhook_url": {
           "type": "string",
-          "description": "Slack Incoming Webhook URL for this session, if not configured via Secrets Manager."
+          "description": "Slack Incoming Webhook URL for this session, if not set via the SLACK_WEBHOOK_URL environment variable."
         }
       },
       "required": ["message"]

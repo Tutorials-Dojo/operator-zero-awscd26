@@ -12,7 +12,6 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
-const SLACK_SECRET_NAME = 'operator-zero/slack-webhook';
 const ECS_CPU_ALARM_NAME = 'operator-zero-ECSHighCPU';
 const CHAOS_ALARM_NAME = 'operator-zero-ChaosSimulation';
 
@@ -144,11 +143,6 @@ export class OperatorZeroBaseStack extends cdk.Stack {
               ],
             }),
             new iam.PolicyStatement({
-              sid: 'SlackWebhookSecretRead',
-              actions: ['secretsmanager:GetSecretValue'],
-              resources: [`arn:aws:secretsmanager:${this.region}:${this.account}:secret:operator-zero/*`],
-            }),
-            new iam.PolicyStatement({
               sid: 'ChaosAlarmControl',
               actions: [
                 'cloudwatch:PutMetricData',
@@ -239,7 +233,10 @@ export class OperatorZeroBaseStack extends cdk.Stack {
       logGroup: actionHandlerLogGroup,
       environment: {
         MEMORY_TABLE: incidentTable.tableName,
-        SLACK_SECRET_NAME: SLACK_SECRET_NAME,
+        // Optional — set after creating a Slack Incoming Webhook (Step 7.7).
+        // Plaintext in the Lambda's environment, not Secrets Manager: fine for
+        // a workshop webhook, not for a credential you'd rotate or restrict.
+        SLACK_WEBHOOK_URL: '',
         // Set these after creating the Diagnostics/Remediation Harnesses
         // (Steps 9-10) — no code edits needed.
         DIAGNOSTICS_HARNESS_ARN: '',

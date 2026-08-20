@@ -117,19 +117,21 @@ aws ecs describe-services --cluster operator-zero-cluster \
 
 **Verify:** `operator-zero-dispatcher`, `operator-zero-action-handler`, `operator-zero-chaos-trigger` all listed; DynamoDB `Status: ACTIVE`; ECS `Status: ACTIVE`, `Running: 1`.
 
-**7.7 — Create the Slack webhook secret (optional)**
+**7.7 — Set the Slack webhook (optional)**
 
-The Supervisor Harness posts its final incident summary to Slack via `post_to_slack` (Step 5 of its reasoning process). This only fires if a webhook URL exists — skip this sub-step entirely and the pipeline still runs end to end, just without the Slack message; `record_incident_outcome` and DynamoDB memory are unaffected either way.
+The Supervisor Harness posts its final incident summary to Slack via `post_to_slack` (Step 5 of its reasoning process). This only fires if a webhook URL is configured — skip this sub-step entirely and the pipeline still runs end to end, just without the Slack message; `record_incident_outcome` and DynamoDB memory are unaffected either way.
 
-If you have a Slack workspace and want the notification:
+If you have a Slack workspace and want the notification, it's the same environment-variable pattern as everything else in this workshop — Lambda console, no CLI, no separate secret store:
+
 1. In Slack: create an [Incoming Webhook](https://api.slack.com/messaging/webhooks) for the channel you want alerts in, copy the webhook URL
-2. AWS Console → **Secrets Manager** → **Store a new secret**
-3. **Secret type** → **Other type of secret**
-4. **Plaintext** tab → clear the default JSON → paste just the webhook URL (no quotes, no JSON wrapper)
-5. **Secret name** → `operator-zero/slack-webhook` (must match exactly — this is what `SLACK_SECRET_NAME` on `operator-zero-action-handler` points to)
-6. Click through **Next** with defaults → **Store**
+2. Lambda console → search `operator-zero-action-handler` → open it
+3. **Configuration** tab → **Environment variables** → **Edit**
+4. Set `SLACK_WEBHOOK_URL` → your webhook URL
+5. **Save**
 
-**Verify:** Secrets Manager → `operator-zero/slack-webhook` → **Retrieve secret value** shows your webhook URL.
+> The webhook URL sits in plaintext in the Lambda's environment variables (visible to anyone with read access to this Lambda in the console or via `get-function-configuration`). Fine for a disposable workshop webhook — if you're taking this pattern into a real deployment, put it in Secrets Manager or SSM Parameter Store instead and read it at invoke time.
+
+**Verify:** back on **Configuration → Environment variables**, confirm `SLACK_WEBHOOK_URL` shows your webhook URL.
 
 ## STEP 8 — Create the AgentCore Gateway
 
@@ -180,7 +182,7 @@ Find the **Tool schema** field under the target configuration → select **Inlin
       "properties": {
         "message": { "type": "string", "description": "The complete incident analysis including classification, reasoning, and recommended actions." },
         "severity": { "type": "string", "description": "Severity level for formatting: CRITICAL, HIGH, MEDIUM, LOW, or INFO." },
-        "webhook_url": { "type": "string", "description": "Slack Incoming Webhook URL for this session, if not configured via Secrets Manager." }
+        "webhook_url": { "type": "string", "description": "Slack Incoming Webhook URL for this session, if not set via the SLACK_WEBHOOK_URL environment variable." }
       },
       "required": ["message"]
     }
@@ -423,7 +425,7 @@ RULES:
    - `REMEDIATION_HARNESS_ARN` → your Remediation Harness ARN from Step 10.6
 4. **Save**
 
-That's it — no **Code** tab, no pasting `elif` blocks. `MEMORY_TABLE` and `SLACK_SECRET_NAME` were already set by CDK in Step 7.
+That's it — no **Code** tab, no pasting `elif` blocks. `MEMORY_TABLE` was already set by CDK in Step 7, and `SLACK_WEBHOOK_URL` if you set it in Step 7.7.
 
 ## STEP 12 — Create the Supervisor Harness
 

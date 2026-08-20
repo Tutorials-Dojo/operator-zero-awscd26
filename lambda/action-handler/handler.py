@@ -8,7 +8,7 @@ diagnose_incident, execute_remediation, record_incident_outcome.
 
 Environment (set by CDK, no code edits required):
   MEMORY_TABLE              DynamoDB table name (operator-zero-incidents)
-  SLACK_SECRET_NAME         Secrets Manager secret holding the Slack webhook URL
+  SLACK_WEBHOOK_URL         Slack Incoming Webhook URL (set after Step 7.7, optional)
   DIAGNOSTICS_HARNESS_ARN   Diagnostics Harness ARN (set after Step 9)
   REMEDIATION_HARNESS_ARN   Remediation Harness ARN (set after Step 10)
 """
@@ -32,7 +32,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 dynamodb = boto3.resource("dynamodb")
-secretsmanager = boto3.client("secretsmanager")
 ecs_client = boto3.client("ecs")
 # AgentCore data-plane client is "bedrock-agentcore" / invoke_harness(...).
 # There is no "bedrock-agentcore-runtime" client or invoke_agent(...) method.
@@ -41,8 +40,6 @@ agentcore_client = boto3.client("bedrock-agentcore")
 TTL_SECONDS = 90 * 24 * 60 * 60
 HARNESS_MAX_ITERATIONS = 8
 HARNESS_TIMEOUT_SECONDS = 90
-
-_slack_webhook_cache: str | None = None
 
 SEVERITY_EMOJI = {
     "CRITICAL": "🚨",
@@ -71,31 +68,10 @@ def build_response(event: dict, function_name: str, body_text: str) -> dict:
 
 
 def get_slack_webhook() -> str:
-    global _slack_webhook_cache
-
-    if _slack_webhook_cache:
-        return _slack_webhook_cache
-
-    secret_name = os.environ.get("SLACK_SECRET_NAME")
-    if not secret_name:
-        raise ValueError(
-            "SLACK_SECRET_NAME is not set. Expected operator-zero/slack-webhook "
-            "(created in Task 1 of the lab guide)."
-        )
-
-    try:
-        secret = secretsmanager.get_secret_value(SecretId=secret_name)
-    except ClientError as exc:
-        error = exc.response.get("Error", {})
-        logger.error(
-            "Secrets Manager GetSecretValue failed: code=%s message=%s",
-            error.get("Code", "Unknown"),
-            error.get("Message", str(exc)),
-        )
-        raise
-
-    _slack_webhook_cache = secret["SecretString"]
-    return _slack_webhook_cache
+    webhook_url = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
+    if not webhook_url:
+        raise ValueError("SLACK_WEBHOOK_URL is not set on the action-handler Lambda.")
+    return webhook_url
 
 
 def query_incident_history(event: dict, params: dict) -> dict:
@@ -220,12 +196,12 @@ def post_to_slack(event: dict, params: dict) -> dict:
             try:
                 webhook_url = get_slack_webhook()
             except Exception as exc:
-                logger.warning("No webhook URL available (params or Secrets Manager): %s", exc)
+                logger.warning("No webhook URL available (params or SLACK_WEBHOOK_URL): %s", exc)
                 return build_response(
                     event,
                     "post_to_slack",
                     "Slack post skipped: no webhook URL configured. "
-                    "Set the operator-zero/slack-webhook secret (Step 7.7). "
+                    "Set SLACK_WEBHOOK_URL on the action-handler Lambda (Step 7.7). "
                     "The incident is recorded in DynamoDB memory.",
                 )
 
