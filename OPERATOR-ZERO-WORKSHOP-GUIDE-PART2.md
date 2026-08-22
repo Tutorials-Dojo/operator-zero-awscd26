@@ -46,8 +46,8 @@ Click the `>_` terminal icon in the top navbar. Wait for the `$` prompt (30–60
 
 **7.2 — Clone the repository**
 ```bash
-git clone https://github.com/Tutorials-Dojo/operatora-zero-workshop-v2.git
-cd operatora-zero-workshop-v2
+git clone https://github.com/Tutorials-Dojo/operator-zero-workshop-v2.git
+cd operator-zero-workshop-v2
 ```
 
 **7.3 — Install CDK dependencies**
