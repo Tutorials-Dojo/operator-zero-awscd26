@@ -46,8 +46,8 @@ Click the `>_` terminal icon in the top navbar. Wait for the `$` prompt (30–60
 
 **7.2 — Clone the repository**
 ```bash
-git clone https://github.com/Tutorials-Dojo/operator-zero-awscd26.git
-cd operator-zero-awscd26
+git clone https://github.com/Tutorials-Dojo/operatora-zero-workshop-v2.git
+cd operatora-zero-workshop-v2
 ```
 
 **7.3 — Install CDK dependencies**
@@ -128,7 +128,7 @@ The webhook URL sits in plaintext in the Lambda's environment variables — fine
    ```
 
 **8.6 — Tool schema (this defines what tools the Gateway exposes to your Harnesses)**
-Find the **Tool schema** field under the target configuration → select **Inline** → paste the contents of [`operator-zero-awscd26/lambda/action-handler/gateway-tool-schema.json`](operator-zero-awscd26/lambda/action-handler/gateway-tool-schema.json), reproduced here for convenience:
+Find the **Tool schema** field under the target configuration → select **Inline** → paste the contents of [`operatora-zero-workshop-v2/lambda/action-handler/gateway-tool-schema.json`](operatora-zero-workshop-v2/lambda/action-handler/gateway-tool-schema.json), reproduced here for convenience:
 
 ```json
 [
@@ -698,9 +698,9 @@ Also confirm in the console: AgentCore → Harness → all three (`operator_zero
 **Download your repo:**
 ```bash
 cd ~
-zip -r operator-zero-awscd26.zip operator-zero-awscd26/
+zip -r operatora-zero-workshop-v2.zip operatora-zero-workshop-v2/
 ```
-CloudShell → **Actions** → **Download file** → `/home/cloudshell-user/operator-zero-awscd26.zip`
+CloudShell → **Actions** → **Download file** → `/home/cloudshell-user/operatora-zero-workshop-v2.zip`
 
 **What to build next:**
 - Add **GuardDuty findings** as an event source for security incidents
@@ -718,7 +718,7 @@ CloudShell → **Actions** → **Download file** → `/home/cloudshell-user/oper
 
 **Destroy the CDK stack:**
 ```bash
-cd ~/operator-zero-awscd26/cdk
+cd ~/operatora-zero-workshop-v2/cdk
 cdk destroy OperatorZeroBaseStack --force
 ```
 
